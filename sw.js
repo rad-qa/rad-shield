@@ -2,7 +2,7 @@
 // RAD Shield — Service Worker（PWA 離線支援）
 // ════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'rad-shield-v3';
+const CACHE_NAME = 'rad-shield-v4';
 
 // 需要快取的檔案（離線時仍可開啟）
 const CACHE_FILES = [
