@@ -101,7 +101,28 @@ function getPwd() { return getStoredPwd(); }
 
 async function apiFetch(body) {
   try {
-    const params = new URLSearchParams({ ...body, pwd: getPwd() });
+   async function apiFetch(body) {
+  try {
+    const hasData = ['equipment','records','retired','config'].some(k => body[k] !== undefined);
+    if (hasData) {
+      const payload = { ...body, pwd: getPwd() };
+      await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+      return { ok: true };
+    } else {
+      const params = new URLSearchParams({ ...body, pwd: getPwd() });
+      const res = await fetch(API_URL + '?' + params.toString());
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('API error:', e);
+    return null;
+  }
+}
     // 資料欄位（陣列/物件）需序列化
     ['equipment','records','retired','config'].forEach(k => {
       if (body[k] !== undefined) params.set(k, JSON.stringify(body[k]));
