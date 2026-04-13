@@ -41,8 +41,14 @@ function getStoredPwd() { return localStorage.getItem(KEYS.auth) || ''; }
 function storePwd(pwd)  { localStorage.setItem(KEYS.auth, pwd); }
 
 async function verifyPassword(pwd) {
-  const res = await apiFetch({ action:'verifyPassword', pwd });
-  return res && res.ok;
+  try {
+    const res = await fetch(API_URL + '?action=verifyPassword&pwd=' + encodeURIComponent(pwd));
+    const data = await res.json();
+    return data && data.ok;
+  } catch(e) {
+    console.warn('verifyPassword error:', e);
+    return false;
+  }
 }
 
 async function handleLogin() {
@@ -1206,4 +1212,4 @@ window.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') handleLogin();
     });
   }
-})
+});
