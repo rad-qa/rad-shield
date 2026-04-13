@@ -99,8 +99,6 @@ function showLockScreen() {
 // ════════════════════════════════════════════════════════════
 function getPwd() { return getStoredPwd(); }
 
-async function apiFetch(body) {
-  try {
    async function apiFetch(body) {
   try {
     const hasData = ['equipment','records','retired','config'].some(k => body[k] !== undefined);
