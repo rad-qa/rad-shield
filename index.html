@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAD Shield｜輻射防護器具管理系統</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f2744">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RAD Shield">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- 密碼鎖定畫面 -->
+<div id="lock-screen">
+  <div class="lock-box">
+    <div class="lock-logo">☢️</div>
+    <div class="lock-title">RAD Shield</div>
+    <div class="lock-sub">輻射防護器具管理系統</div>
+    <input class="lock-input" type="password" id="lock-pwd" placeholder="請輸入密碼" maxlength="20">
+    <button class="lock-btn" onclick="handleLogin()">登入</button>
+    <div class="lock-err" id="lock-err"></div>
+    <div class="lock-loading" id="lock-loading"></div>
+  </div>
+</div>
+
+<!-- 同步 Loading 提示 -->
+<div id="sync-overlay">
+  <span class="spin"></span>
+  <span>載入中...</span>
+</div>
+
+<div class="app">
+
+<!-- Sidebar -->
+<div class="sb">
+  <div class="logo">
+    <div class="logo-badge">☢ 輻射防護</div>
+    <div class="logo-title">RAD Shield</div>
+    <div class="logo-sub">器具管理系統</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-sec">主要功能</div>
+    <div class="ni on" onclick="nav('dashboard',this)"><span class="ni-ic">📊</span><span>儀表板</span></div>
+    <div class="ni" onclick="nav('equipment',this)"><span class="ni-ic">🦺</span><span>器具管理</span></div>
+    <div class="ni" onclick="nav('schedule',this)"><span class="ni-ic">📅</span><span>檢測計畫</span></div>
+    <div class="ni" onclick="nav('records',this)"><span class="ni-ic">📋</span><span>檢測紀錄</span></div>
+    <div class="ni" onclick="nav('batch',this)"><span class="ni-ic">⚡</span><span>批次登錄</span></div>
+    <div class="nav-sec">工具</div>
+    <div class="ni" onclick="nav('overview',this)"><span class="ni-ic">📈</span><span>年度總覽</span></div>
+    <div class="ni" onclick="nav('retired',this)"><span class="ni-ic">📦</span><span>汰換清單</span></div>
+    <div class="ni" onclick="nav('reports',this)"><span class="ni-ic">📑</span><span>報表匯出</span></div>
+    <div class="ni" onclick="nav('import',this)"><span class="ni-ic">📥</span><span>資料輸入</span></div>
+    <div class="ni" onclick="nav('settings',this)"><span class="ni-ic">⚙️</span><span>系統設定</span></div>
+  </nav>
+  <div class="sf">
+    <div class="sf-t" id="sf-hospital">某某醫院</div>
+    <div class="sf-t" id="sf-dept">輻射防護組</div>
+    <div class="sf-t" style="color:rgba(255,255,255,.15);margin-top:3px">v3.0</div>
+  </div>
+</div>
+
+<!-- Sidebar 遮罩（手機用）-->
+<div class="sb-overlay"></div>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="tb-title" id="topbar-title">儀表板</div>
+    </div>
+    <div class="sync" id="sync-bar">
+      <div class="sd dis" id="sync-dot"></div>
+      <span id="sync-label" style="color:var(--g400)">連線中...</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- 儀表板 -->
+    <div class="page on" id="page-dashboard">
+      <div class="dh">
+        <div><div class="dh-n" id="dash-hn">某某醫院</div><div class="dh-s" id="dash-hs">輻射防護組　輻射防護器具管理系統</div></div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="font-size:10px;color:rgba(255,255,255,.7)">顯示年度</span>
+          <select class="sel" id="dash-year" onchange="renderDash()" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-weight:700;min-width:80px"></select>
+        </div>
+      </div>
+      <div id="dash-alert"></div>
+      <div class="srow" id="dash-stats"></div>
+      <div class="two-col">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="card">
+            <div class="ch"><div class="ct">📅 本月待檢清單</div><button class="btn bo bxs" onclick="nav('equipment',document.querySelectorAll('.ni')[1])">器具管理</button></div>
+            <table class="tbl"><thead><tr><th>單位</th><th>件數</th><th style="color:#10b981">✅ 已完成</th><th style="color:#ef4444">⏳ 待完成</th></tr></thead><tbody id="dash-mp"></tbody></table>
+          </div>
+          <div class="card">
+            <div class="ch"><div class="ct">🔶 本年度不合格（建議汰換）</div><button class="btn bo bxs" onclick="nav('records',document.querySelectorAll('.ni')[3])">檢測紀錄</button></div>
+            <table class="tbl"><thead><tr><th>編號</th><th>器具</th><th>單位</th><th>最新結果</th></tr></thead><tbody id="dash-fl"></tbody></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ct">🏥 各單位狀況</div></div>
+          <table class="tbl"><thead><tr><th>單位</th><th>器具數</th><th>已檢測</th><th>逾期</th><th>不合格</th><th>二次待檢</th><th>狀況</th></tr></thead><tbody id="dash-dept"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 器具管理 -->
+    <div class="page" id="page-equipment">
+      <div class="fb">
+        <div class="sw"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input class="si2" type="text" placeholder="搜尋編號、廠牌..." id="eq-q" oninput="renderEq()"></div>
+        <select class="sel" id="eq-fdept" onchange="renderEq()"><option value="">所有單位</option></select>
+        <select class="sel" id="eq-ftype" onchange="renderEq()"><option value="">所有類型</option><option>鉛衣</option><option>鉛手套</option><option>鉛眼鏡</option><option>其他</option></select>
+        <select class="sel" id="eq-fst" onchange="renderEq()"><option value="">所有狀態</option><option value="pass">合格</option><option value="fail">不合格，建議更換</option><option value="overdue">逾期</option><option value="pending">待檢</option><option value="semi_pending">第二次待檢</option></select>
+        <button class="btn bp bsm" onclick="openEqModal()">＋ 新增器具</button>
+      </div>
+      <div class="bbar" id="eq-bbar">
+        <span id="eq-bcnt" style="font-size:11.5px;font-weight:600;color:#92400e"></span>
+        <button class="btn bd bsm" onclick="bulkDelEq()">🗑 刪除選取</button>
+        <button class="btn bo bsm" onclick="bulkRetireEq()">📦 移入汰換</button>
+        <button class="btn bo bsm" onclick="clearEqSel()">取消選取</button>
+      </div>
+      <div class="card">
+        <div class="ch">
+          <div class="ct">器具清單 <span id="eq-cnt" style="font-size:10px;color:var(--g400);font-weight:400"></span></div>
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--g600);cursor:pointer"><input type="checkbox" id="eq-sa" style="accent-color:var(--teal);width:13px;height:13px" onchange="toggleSelAll(this)">全選</label>
+        </div>
+        <div style="overflow-x:auto"><table class="tbl">
+          <thead><tr><th style="width:30px"></th><th>照片</th><th>編號</th><th>類型</th><th>次分類</th><th>廠牌</th><th>鉛當量</th><th>單位</th><th>排定年/月</th><th>半年</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="eq-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- 檢測計畫 -->
+    <div class="page" id="page-schedule">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:12px;font-weight:600;color:var(--navy)">顯示年度</span>
+        <select class="sel" id="sch-year" onchange="renderSchedule()" style="font-weight:600;min-width:90px"></select>
+      </div>
+      <div class="two-col mb12">
+        <div class="card" style="padding:13px">
+          <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">年度完成率</div>
+          <div style="font-size:28px;font-weight:700;color:var(--teal);line-height:1" id="sch-rate">—</div>
+          <div style="font-size:10.5px;color:var(--g400);margin-top:3px" id="sch-sub"></div>
+        </div>
+        <div class="card" style="padding:13px">
+          <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">次月待測數量</div>
+          <div style="font-size:28px;font-weight:700;color:var(--am);line-height:1" id="sch-next">—</div>
+          <div style="font-size:10.5px;color:var(--g400);margin-top:3px" id="sch-ns"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">📅 月份排程總覽</div></div>
+        <div style="padding:15px"><div class="mgrid" id="month-grid"></div></div>
+      </div>
+    </div>
+
+    <!-- 檢測紀錄 -->
+    <div class="page" id="page-records">
+      <div class="tabs">
+        <div class="tab on" data-f="all" onclick="recTab(this)">全部</div>
+        <div class="tab" data-f="normal" onclick="recTab(this)">✅ 正常</div>
+        <div class="tab" data-f="edge_ok" onclick="recTab(this)">⚠️ 邊緣堪用</div>
+        <div class="tab" data-f="edge_replace" onclick="recTab(this)">🔶 邊緣建議換</div>
+        <div class="tab" data-f="core_replace" onclick="recTab(this)">🔴 重要區破損</div>
+        <div class="tab" data-f="both_replace" onclick="recTab(this)">🚨 全區破損</div>
+        <div class="tab" data-f="pending" onclick="recTab(this)">⏳ 待登錄</div>
+      </div>
+      <div class="fb">
+        <div class="sw" style="max-width:230px"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input class="si2" type="text" placeholder="搜尋編號或人員..." id="rec-q" oninput="renderRec()"></div>
+        <select class="sel" id="rec-fdept" onchange="renderRec()"><option value="">所有單位</option></select>
+        <select class="sel" id="rec-fyear" onchange="renderRec()"><option value="">所有年份</option></select>
+        <button class="btn bp bsm" onclick="openRecModal()">＋ 登錄檢測結果</button>
+      </div>
+      <div class="bbar" id="rec-bbar">
+        <span style="font-size:11.5px;color:var(--g600)">已勾選 <strong id="rec-sel-cnt">0</strong> 筆</span>
+        <button class="btn bd bsm" onclick="bulkDelRec()">🗑 刪除選取</button>
+        <button class="btn bo bsm" onclick="clearRecSel()">✕ 取消選取</button>
+      </div>
+      <div class="card"><div style="overflow-x:auto"><table class="tbl">
+        <thead><tr>
+          <th style="width:32px;text-align:center"><input type="checkbox" id="rec-chk-all" style="accent-color:var(--teal);width:13px;height:13px" onchange="toggleAllRec(this)"></th>
+          <th>編號</th><th>類型</th><th>次分類</th><th>廠牌</th><th>單位</th><th>排定月份</th><th>檢測日期</th><th>檢測人員</th><th>主管核簽</th><th>結果</th><th>下次檢測月份</th><th>備註</th><th>操作</th>
+        </tr></thead>
+        <tbody id="rec-tbody"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- 批次登錄 -->
+    <div class="page" id="page-batch">
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:14px;background:#fff;border:1px solid var(--g200);border-radius:10px;overflow:hidden">
+        <div class="batch-step on" id="bstep-1" style="flex:1;padding:10px 14px;display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--teal);background:var(--tp);border-right:1px solid var(--g200)">
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--teal);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span><span>設定檢測條件</span>
+        </div>
+        <div class="batch-step" id="bstep-2" style="flex:1;padding:10px 14px;display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--g400);border-right:1px solid var(--g200)">
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--g300);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" id="bstep2-dot">2</span><span>逐一填寫結果</span>
+        </div>
+        <div class="batch-step" id="bstep-3" style="flex:1;padding:10px 14px;display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--g400)">
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--g300);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" id="bstep3-dot">3</span><span>確認並儲存</span>
+        </div>
+      </div>
+      <div id="batch-s1">
+        <div class="card cb" style="max-width:620px;margin:0 auto">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:14px">⚡ 設定本次批次檢測條件</div>
+          <div class="fg2">
+            <div class="fg"><label class="fl">檢測月份 <span class="fr">*</span></label><input class="fi2" type="month" id="b-month"></div>
+            <div class="fg"><label class="fl">篩選單位</label><select class="fs" id="b-dept"><option value="">全部單位</option></select></div>
+            <div class="fg"><label class="fl">檢測人員 <span class="fr">*</span></label><input class="fi2" id="b-insp" placeholder="執行人員姓名（全批套用）"></div>
+            <div class="fg"><label class="fl">預設結果</label>
+              <select class="fs" id="b-default-result">
+                <option value="normal">✅ 正常，堪用</option>
+                <option value="edge_ok">⚠️ 邊緣破損，堪用</option>
+                <option value="edge_replace">🔶 邊緣破損，建議更換</option>
+                <option value="core_replace">🔴 重要防護區破損，建議更換</option>
+              </select>
+            </div>
+            <div class="fg full">
+              <label class="fl">顯示範圍</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;cursor:pointer"><input type="checkbox" id="b-inc-overdue" checked style="accent-color:var(--teal)"> 包含逾期</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;cursor:pointer"><input type="checkbox" id="b-inc-pending" checked style="accent-color:var(--teal)"> 包含待檢</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;cursor:pointer"><input type="checkbox" id="b-inc-semi" checked style="accent-color:var(--teal)"> 包含半年檢測</label>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:9px">
+            <button class="btn bp" onclick="batchLoadList()" style="font-size:12px;padding:8px 16px">載入待檢清單 →</button>
+            <span id="b-load-hint" style="font-size:10.5px;color:var(--g400)"></span>
+          </div>
+        </div>
+      </div>
+      <div id="batch-s2" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div><span style="font-size:13px;font-weight:700;color:var(--navy)">逐一填寫檢測結果</span><span id="b-progress-txt" style="font-size:11px;color:var(--g400);margin-left:8px"></span></div>
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <select class="sel" id="b-bulk-result" style="font-size:11px"><option value="">— 全批套用 —</option><option value="normal">✅ 全部正常</option><option value="edge_ok">⚠️ 全部邊緣堪用</option></select>
+            <button class="btn bo bsm" onclick="batchApplyAll()">套用</button>
+            <button class="btn bo bsm" onclick="batchBack()">← 返回</button>
+          </div>
+        </div>
+        <div style="background:var(--g200);border-radius:20px;height:6px;margin-bottom:12px;overflow:hidden"><div id="b-progress-bar" style="height:100%;background:var(--teal);border-radius:20px;transition:width .3s;width:0%"></div></div>
+        <div class="card"><div style="overflow-x:auto">
+          <table class="tbl" id="batch-tbl">
+            <thead><tr><th>#</th><th>編號</th><th>類型</th><th>單位</th><th>排定月</th><th>檢測日期</th><th>檢測結果</th><th>備註</th><th>狀態</th></tr></thead>
+            <tbody id="batch-tbody"></tbody>
+          </table>
+        </div></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+          <button class="btn bo" onclick="batchBack()">← 返回</button>
+          <button class="btn bp" onclick="batchGoConfirm()" style="font-size:12px;padding:8px 16px">預覽並儲存 →</button>
+        </div>
+      </div>
+      <div id="batch-s3" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:7px">
+          <span style="font-size:13px;font-weight:700;color:var(--navy)">確認儲存</span>
+          <button class="btn bo bsm" onclick="batchGoStep2()">← 返回修改</button>
+        </div>
+        <div id="b-confirm-summary" style="margin-bottom:12px"></div>
+        <div class="card">
+          <div class="ch"><div class="ct" id="b-confirm-title">即將儲存的紀錄</div></div>
+          <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>#</th><th>編號</th><th>類型</th><th>單位</th><th>日期</th><th>結果</th><th>備註</th></tr></thead><tbody id="b-confirm-tbody"></tbody></table></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn bo" onclick="batchGoStep2()">← 返回修改</button>
+          <button class="btn bp" id="b-save-btn" onclick="batchSaveAll()" style="font-size:12.5px;padding:8px 20px">✅ 確認儲存全部</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 年度總覽 -->
+    <div class="page" id="page-overview">
+      <div class="fb"><select class="sel" id="ov-year" onchange="renderOverview()"><option value="">選擇年份</option></select></div>
+      <div class="two-col mb12">
+        <div class="card cb"><div class="ct" style="margin-bottom:9px">📊 各科別結果</div><canvas id="chart-bar" style="max-height:250px"></canvas></div>
+        <div class="card cb"><div class="ct" style="margin-bottom:9px">🥧 全院比例</div><canvas id="chart-pie" style="max-height:250px"></canvas></div>
+      </div>
+      <div class="card"><div class="ch"><div class="ct">📋 各單位年度明細</div></div>
+        <div style="overflow-x:auto"><table class="tbl">
+          <thead><tr><th>單位</th><th style="color:#10b981">✅正常堪用</th><th style="color:#f59e0b">⚠️邊緣堪用</th><th style="color:#f97316">🔶邊緣建議換</th><th style="color:#ef4444">🔴重要區破損</th><th style="color:#991b1b">🚨邊緣及重要</th><th>📭尚未檢測</th><th>合計</th></tr></thead>
+          <tbody id="ov-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- 汰換清單 -->
+    <div class="page" id="page-retired">
+      <div class="fb">
+        <div class="sw"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input class="si2" type="text" placeholder="搜尋編號、廠牌..." id="ret-q" oninput="renderRetired()"></div>
+        <select class="sel" id="ret-fyear" onchange="renderRetired()"><option value="">所有年份</option></select>
+        <select class="sel" id="ret-fdept" onchange="renderRetired()"><option value="">所有單位</option></select>
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">📦 汰換清單 <span id="ret-cnt" style="font-size:10px;color:var(--g400);font-weight:400"></span></div><button class="btn bo bsm" onclick="exportRetiredCSV()">⬇ 匯出 CSV</button></div>
+        <div style="overflow-x:auto"><table class="tbl">
+          <thead><tr><th>汰換年份</th><th>汰換日期</th><th>編號</th><th>類型</th><th>次分類</th><th>廠牌</th><th>鉛當量</th><th>單位</th><th>備註</th><th>操作</th></tr></thead>
+          <tbody id="ret-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- 報表匯出 -->
+    <div class="page" id="page-reports">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+        <div class="card cb"><div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px">📊 年度檢測總報表</div>
+          <div class="fg2" style="margin-bottom:0"><div class="fg"><label class="fl">年度</label><select class="fs" id="rpt-year"><option>2026</option><option>2025</option><option>2024</option></select></div><div class="fg"><label class="fl">單位</label><select class="fs" id="rpt-dept"><option value="">全部</option></select></div></div>
+          <div style="display:flex;gap:7px;margin-top:11px"><button class="btn bp bsm" onclick="exportReport('annual')">⬇ CSV</button></div>
+        </div>
+        <div class="card cb"><div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px">📋 單位器具清冊</div>
+          <div class="fg2" style="margin-bottom:0"><div class="fg"><label class="fl">單位</label><select class="fs" id="rpt-dept2"><option value="">全部</option></select></div></div>
+          <div style="display:flex;gap:7px;margin-top:11px"><button class="btn bp bsm" onclick="exportReport('inventory')">⬇ CSV</button></div>
+        </div>
+        <div class="card cb"><div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px">⚠️ 逾期/不合格報表</div>
+          <div style="display:flex;gap:7px;margin-top:11px"><button class="btn bd bsm" onclick="exportReport('anomaly')">⬇ CSV</button></div>
+        </div>
+        <div class="card cb"><div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px">📅 月度工作單</div>
+          <div class="fg2" style="margin-bottom:0"><div class="fg"><label class="fl">月份</label><input class="fi2" type="month" id="rpt-month" value="2026-06"></div></div>
+          <div style="display:flex;gap:7px;margin-top:11px"><button class="btn bp bsm" onclick="exportReport('monthly')">⬇ CSV</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 資料輸入 -->
+    <div class="page" id="page-import">
+      <div class="tabs">
+        <div class="tab on" onclick="importTab(this,'imp-eq')">🦺 匯入器具清單</div>
+        <div class="tab" onclick="importTab(this,'imp-rec')">📋 匯入檢測紀錄</div>
+      </div>
+      <div id="imp-eq">
+        <div class="iz" id="dz-eq" ondragover="dov(event,'dz-eq')" ondragleave="dol('dz-eq')" ondrop="dod(event,'eq')" onclick="document.getElementById('fi-eq').click()">
+          <div class="iz-ico">📂</div><div class="iz-t">拖曳或點擊上傳器具清單</div>
+          <div class="iz-s">支援 .csv（UTF-8 編碼）</div>
+          <div style="margin-top:8px"><span class="chip" onclick="event.stopPropagation();dlTpl('eq')">⬇ 下載 CSV 範本</span></div>
+        </div>
+        <input type="file" id="fi-eq" accept=".csv" style="display:none" onchange="handleFile(this,'eq')">
+        <div id="prev-eq"></div>
+      </div>
+      <div id="imp-rec" style="display:none">
+        <div class="iz" id="dz-rec" ondragover="dov(event,'dz-rec')" ondragleave="dol('dz-rec')" ondrop="dod(event,'rec')" onclick="document.getElementById('fi-rec').click()">
+          <div class="iz-ico">📂</div><div class="iz-t">拖曳或點擊上傳檢測紀錄</div>
+          <div class="iz-s">支援 .csv（UTF-8 編碼）</div>
+          <div style="margin-top:8px"><span class="chip" onclick="event.stopPropagation();dlTpl('rec')">⬇ 下載 CSV 範本</span></div>
+        </div>
+        <input type="file" id="fi-rec" accept=".csv" style="display:none" onchange="handleFile(this,'rec')">
+        <div id="prev-rec"></div>
+      </div>
+    </div>
+
+    <!-- 系統設定 -->
+    <div class="page" id="page-settings">
+      <div style="max-width:600px;display:flex;flex-direction:column;gap:11px">
+        <div class="card cb"><div class="stitle">☁️ Google Sheets 同步</div><div id="drive-panel"></div></div>
+        <div class="card cb">
+          <div class="stitle">🏥 醫院資訊</div>
+          <div class="fg2">
+            <div class="fg full"><label class="fl">醫院名稱</label><input class="fi2" id="set-hosp" placeholder="某某醫院"></div>
+            <div class="fg full"><label class="fl">科室名稱</label><input class="fi2" id="set-dept" placeholder="輻射防護組"></div>
+          </div>
+          <div class="stitle" style="margin-top:13px">🏢 單位管理</div>
+          <div id="dept-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:7px"><input class="fi2" id="new-dept" placeholder="新增單位名稱" style="flex:1" onkeydown="if(event.key==='Enter')addDept()"><button class="btn bp bsm" onclick="addDept()">新增</button></div>
+        </div>
+        <div class="card cb">
+          <div class="stitle">🖊 核簽人員管理</div>
+          <div id="approver-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:7px"><input class="fi2" id="new-approver" placeholder="新增核簽人員姓名" style="flex:1" onkeydown="if(event.key==='Enter')addApprover()"><button class="btn bp bsm" onclick="addApprover()">新增</button></div>
+        </div>
+        <div class="card cb">
+          <div class="stitle">🔧 自訂欄位管理</div>
+          <div id="custom-fields-list" style="display:flex;flex-direction:column;gap:7px;margin-bottom:10px"></div>
+          <div style="background:var(--g50);border:1px solid var(--g200);border-radius:8px;padding:11px">
+            <div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:8px">新增自訂欄位</div>
+            <div class="fg2" style="grid-template-columns:1fr 1fr auto;align-items:end">
+              <div class="fg"><label class="fl">欄位名稱 <span class="fr">*</span></label><input class="fi2" id="cf-name" placeholder="e.g. 認證號碼"></div>
+              <div class="fg"><label class="fl">適用範圍</label><select class="fs" id="cf-scope"><option value="eq">器具</option><option value="rec">紀錄</option><option value="both">器具＋紀錄</option></select></div>
+              <button class="btn bp bsm" onclick="addCustomField()" style="height:32px">新增</button>
+            </div>
+            <div style="margin-top:8px"><label class="fl">提示文字（選填）</label><input class="fi2" id="cf-placeholder" placeholder="e.g. 請輸入認證字號" style="margin-top:4px"></div>
+          </div>
+        </div>
+        <div class="card cb">
+          <div style="display:flex;gap:7px">
+            <button class="btn bp" onclick="saveSettings()">💾 儲存設定</button>
+            <button class="btn bd" onclick="if(confirm('確定要清除所有資料？此動作無法復原！'))clearAll()">🗑 清除所有資料</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- Modal: 器具 -->
+<div class="ov" id="modal-eq">
+  <div class="modal mlg">
+    <div class="mh"><div class="mt2" id="eq-mtitle">新增器具</div><button class="mc" onclick="closeModal('modal-eq')">✕</button></div>
+    <div class="mb2">
+      <input type="hidden" id="eq-eid">
+      <div class="fg2">
+        <div class="fg full"><label class="fl">器具照片</label>
+          <div id="photo-area"><div class="phu" onclick="document.getElementById('ph-inp').click()"><div style="font-size:22px;margin-bottom:5px">📷</div><div style="font-size:11.5px;font-weight:600;color:var(--navy)">點擊上傳照片</div></div></div>
+          <input type="file" id="ph-inp" accept="image/*" style="display:none" onchange="handlePhoto(this)">
+        </div>
+        <div class="fg"><label class="fl">編號 <span class="fr">*</span></label><input class="fi2" id="f-id" placeholder="e.g. LA-029"></div>
+        <div class="fg"><label class="fl">器具類型 <span class="fr">*</span></label><select class="fs" id="f-type"><option>鉛衣</option><option>鉛手套</option><option>鉛眼鏡</option><option>其他</option></select></div>
+        <div class="fg"><label class="fl">器具次分類</label><select class="fs" id="f-sub"><option value="">— 請選擇 —</option><option>頸</option><option>衣</option><option>裙</option><option>一片</option><option>其他</option></select></div>
+        <div class="fg"><label class="fl">廠牌 <span class="fr">*</span></label><input class="fi2" id="f-brand" placeholder="e.g. MAVIG"></div>
+        <div class="fg"><label class="fl">型號</label><input class="fi2" id="f-model" placeholder="e.g. BR35"></div>
+        <div class="fg"><label class="fl">鉛當量 (mmPb)</label><input class="fi2" type="number" step="0.01" id="f-lead" placeholder="0.35"></div>
+        <div class="fg"><label class="fl">所屬單位 <span class="fr">*</span></label><select class="fs" id="f-dept"></select></div>
+        <div class="fg"><label class="fl">排定年/月 <span class="fr">*</span></label>
+          <input class="fi2" id="f-month" placeholder="例：6 或 2031-06" style="font-family:var(--M)">
+          <span style="font-size:9.5px;color:var(--g400)">每年填月份（1~12）；多年週期填 YYYY-MM</span>
+        </div>
+        <div class="fg"><label class="fl">是否需半年檢測</label><select class="fs" id="f-semi" onchange="toggleM2()"><option value="0">否</option><option value="1">是</option></select></div>
+        <div class="fg" id="f-m2-wrap" style="display:none"><label class="fl">半年檢測月份</label>
+          <select class="fs" id="f-month2"><option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option><option value="7">7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option></select>
+        </div>
+        <div class="fg"><label class="fl">啟用日期</label><input class="fi2" type="date" id="f-start"></div>
+        <div class="fg"><label class="fl">保管人</label><input class="fi2" id="f-owner" placeholder="姓名"></div>
+        <div class="fg full"><label class="fl">備註</label><textarea class="fta" id="f-note" placeholder="其他說明..."></textarea></div>
+      </div>
+      <div id="f-custom-fields-wrap" style="display:none;margin-top:14px;border-top:1px solid var(--g100);padding-top:13px">
+        <div style="font-size:10.5px;font-weight:700;color:var(--g600);margin-bottom:9px">🔧 附加屬性</div>
+        <div class="fg2" id="f-custom-fields-body"></div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn bo" onclick="closeModal('modal-eq')">取消</button><button class="btn bp" onclick="saveEq()">💾 儲存器具</button></div>
+  </div>
+</div>
+
+<!-- Modal: 檢測紀錄 -->
+<div class="ov" id="modal-rec">
+  <div class="modal mlg">
+    <div class="mh"><div class="mt2" id="rec-mtitle">登錄檢測結果</div><button class="mc" onclick="closeModal('modal-rec')">✕</button></div>
+    <div class="mb2">
+      <input type="hidden" id="rec-eid">
+      <div class="fg2">
+        <div class="fg"><label class="fl">器具編號 <span class="fr">*</span></label><select class="fs" id="r-eq" onchange="onEqSelect(this.value)"></select></div>
+        <div class="fg"><label class="fl">器具類型</label><input class="fi2" id="r-eqtype" readonly style="background:var(--g50);color:var(--g600)"></div>
+        <div class="fg"><label class="fl">次分類</label><input class="fi2" id="r-eqsub" readonly style="background:var(--g50);color:var(--g600)"></div>
+        <div class="fg"><label class="fl">排定月份</label><input class="fi2" type="month" id="r-plan"></div>
+        <div class="fg"><label class="fl">檢測日期 <span class="fr">*</span></label><input class="fi2" type="date" id="r-date"></div>
+        <div class="fg"><label class="fl">檢測人員 <span class="fr">*</span></label><input class="fi2" id="r-insp" placeholder="執行人員姓名" oninput="document.getElementById('r-insp-sign-label').textContent=this.value||'—'"></div>
+        <div class="fg full"><label class="fl">外觀狀況</label>
+          <div class="cbg"><label class="cbi"><input type="checkbox" id="cb1"> 無破損</label><label class="cbi"><input type="checkbox" id="cb2"> 無裂縫</label><label class="cbi"><input type="checkbox" id="cb3"> 標籤完整</label><label class="cbi"><input type="checkbox" id="cb4"> 扣具正常</label></div>
+        </div>
+        <div class="fg full"><label class="fl">檢測結果 <span class="fr">*</span></label>
+          <select class="fs" id="r-result" onchange="onResultChange()">
+            <option value="normal">✅ 正常，堪用</option><option value="edge_ok">⚠️ 邊緣破損，堪用</option><option value="edge_replace">🔶 邊緣破損，建議更換</option><option value="core_replace">🔴 重要防護區破損，建議更換</option><option value="both_replace">🚨 邊緣及重要防護區破損，建議更換</option>
+          </select>
+        </div>
+        <div class="fg full" id="r-semi-wrap" style="display:none">
+          <div style="background:var(--tp);border:1px solid #99f6e4;border-radius:8px;padding:11px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;font-weight:600"><input type="checkbox" id="r-need2" style="accent-color:var(--teal);width:14px;height:14px" onchange="toggleR2()">安排半年後再次檢測</label>
+            <div id="r-m2-wrap" style="display:none;align-items:center;gap:6px;margin-top:8px"><span style="font-size:11.5px;color:var(--g600)">第二次月份：</span>
+              <select class="fs" id="r-second-month" style="width:90px"><option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option><option value="7">7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="fg"><label class="fl">下次檢測月份</label><input class="fi2" type="month" id="r-next"></div>
+        <div class="fg full"><label class="fl">備註</label><textarea class="fta" id="r-note" placeholder="異常說明或處置記錄..."></textarea></div>
+      </div>
+      <div style="margin-top:14px;border-top:1px solid var(--g100);padding-top:13px">
+        <div style="font-size:10.5px;font-weight:700;color:var(--g600);margin-bottom:9px">🖊 核簽資訊</div>
+        <div class="fg2">
+          <div class="fg"><label class="fl">主管核簽</label>
+            <div style="display:flex;gap:5px"><input class="fi2" id="r-approver" placeholder="主管姓名" style="flex:1" oninput="document.getElementById('r-approver-sign-label').textContent=this.value||'—'"><select class="fs" id="r-approver-sel" style="width:90px" onchange="if(this.value){document.getElementById('r-approver').value=this.value;this.value=''}"><option value="">快選</option></select></div>
+          </div>
+          <div class="fg"><label class="fl">核簽日期</label><input class="fi2" type="date" id="r-approve-date"></div>
+          <div class="fg full"><label class="fl">核簽備註</label><input class="fi2" id="r-approve-note" placeholder="主管意見..."></div>
+        </div>
+        <div class="sgrid" style="margin-top:10px">
+          <div class="sb2"><div class="sb-l">檢測人員</div><div class="sl2" style="margin-top:22px"></div><div class="sc2" id="r-insp-sign-label">—</div></div>
+          <div class="sb2"><div class="sb-l">主管核簽</div><div class="sl2" style="margin-top:22px"></div><div class="sc2" id="r-approver-sign-label">—</div></div>
+        </div>
+      </div>
+      <div id="r-custom-fields-wrap" style="display:none;margin-top:14px;border-top:1px solid var(--g100);padding-top:13px">
+        <div style="font-size:10.5px;font-weight:700;color:var(--g600);margin-bottom:9px">🔧 附加屬性</div>
+        <div class="fg2" id="r-custom-fields-body"></div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn bo" onclick="closeModal('modal-rec')">取消</button><button class="btn bp" onclick="saveRec()">💾 儲存紀錄</button></div>
+  </div>
+</div>
+
+<!-- Modal: 月份明細 -->
+<div class="ov" id="modal-month">
+  <div class="modal mlg">
+    <div class="mh"><div class="mt2" id="mmd-title">月份排程明細</div><button class="mc" onclick="closeModal('modal-month')">✕</button></div>
+    <div class="mb2" id="mmd-body"></div>
+    <div class="mf"><button class="btn bo" onclick="closeModal('modal-month')">關閉</button></div>
+  </div>
+</div>
+
+<!-- Modal: 汰換 -->
+<div class="ov" id="modal-retire">
+  <div class="modal" style="width:420px">
+    <div class="mh"><div class="mt2">📦 移入汰換清單</div><button class="mc" onclick="closeModal('modal-retire')">✕</button></div>
+    <div class="mb2">
+      <div style="font-size:11.5px;color:var(--g600);margin-bottom:12px" id="retire-ids"></div>
+      <div class="fg2">
+        <div class="fg"><label class="fl">汰換年份 <span class="fr">*</span></label><input class="fi2" type="number" id="retire-year" min="2000" max="2099"></div>
+        <div class="fg"><label class="fl">汰換日期</label><input class="fi2" type="date" id="retire-date"></div>
+        <div class="fg full"><label class="fl">汰換備註</label><textarea class="fta" id="retire-note" placeholder="汰換原因..."></textarea></div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn bo" onclick="closeModal('modal-retire')">取消</button><button class="btn bp" onclick="confirmRetire()">確認移入汰換</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
