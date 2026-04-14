@@ -146,7 +146,7 @@ async function apiFetch(body) {
 // ── 從 Sheets 載入全部資料 ──
 async function loadFromSheets() {
   showSyncOverlay('從 Google Sheets 載入資料...');
-  const res = await apiFetch({ action: 'load' });
+  const res = await jsonpFetch({ action: 'load' });
   hideSyncOverlay();
 
   if (!res || !res.ok) {
@@ -190,21 +190,65 @@ function scheduleSync() {
   _syncTimer = setTimeout(syncNow, 2000);
 }
 
+// 分批 JSONP 傳送（每批最多 20 筆）
+async function jsonpFetch(params) {
+  return new Promise((resolve) => {
+    const cb = 'cb' + Date.now() + Math.floor(Math.random()*10000);
+    const qs = Object.entries({ ...params, pwd: getPwd(), callback: cb })
+      .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+      .join('&');
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup(); resolve(null);
+    }, 30000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    script.src = API_URL + '?' + qs;
+    script.onerror = () => { cleanup(); resolve(null); };
+    document.head.appendChild(script);
+  });
+}
+
+async function syncSheet(sheetName, data) {
+  const BATCH = 20;
+  // 先清除舊資料
+  const clearRes = await jsonpFetch({ action: 'clearSheet', sheet: sheetName });
+  if (!clearRes || !clearRes.ok) return false;
+  // 分批寫入
+  for (let i = 0; i < data.length; i += BATCH) {
+    const batch = data.slice(i, i + BATCH);
+    const res = await jsonpFetch({
+      action:   'saveSheet',
+      sheet:    sheetName,
+      rows:     JSON.stringify(batch),
+      startRow: String(i + 2)
+    });
+    if (!res || !res.ok) return false;
+  }
+  return true;
+}
+
 async function syncNow() {
   setSyncSt('syn');
-  const res = await apiFetch({
-    action:    'saveAll',
-    equipment: EQ,
-    records:   REC,
-    retired:   RET,
-    config:    CFG
-  });
-  if (res && res.ok) {
-    const n = new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    _lastSync = n;
-    save(KEYS.synced, n);
-    setSyncSt('con', '已同步 ' + n);
-  } else {
+  try {
+    const eqOk  = await syncSheet('equipment', EQ);
+    const recOk = await syncSheet('records',   REC);
+    const retOk = await syncSheet('retired',   RET);
+    const cfgOk = await jsonpFetch({ action: 'saveConfig', config: JSON.stringify(CFG) });
+    if (eqOk && recOk && retOk && cfgOk && cfgOk.ok) {
+      const n = new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      _lastSync = n;
+      save(KEYS.synced, n);
+      setSyncSt('con', '已同步 ' + n);
+    } else {
+      setSyncSt('err', '同步失敗');
+    }
+  } catch(e) {
+    console.warn('syncNow error:', e);
     setSyncSt('err', '同步失敗');
   }
 }
