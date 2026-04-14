@@ -215,6 +215,7 @@ async function jsonpFetch(params) {
 
 async function syncSheet(sheetName, data) {
   const BATCH = 8;
+  const DELAY = 500; // 每批間隔 500ms
   // 先清除舊資料
   const clearRes = await jsonpFetch({ action: 'clearSheet', sheet: sheetName });
   if (!clearRes || !clearRes.ok) return false;
@@ -227,7 +228,14 @@ async function syncSheet(sheetName, data) {
       rows:     JSON.stringify(batch),
       startRow: String(i + 2)
     });
-    if (!res || !res.ok) return false;
+    if (!res || !res.ok) {
+      console.warn('批次失敗 startRow:', i+2, '結果:', res);
+      return false;
+    }
+    // 批次間延遲，避免觸發速率限制
+    if (i + BATCH < data.length) {
+      await new Promise(r => setTimeout(r, DELAY));
+    }
   }
   return true;
 }
