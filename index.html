@@ -55,6 +55,7 @@
     <div class="ni" onclick="nav('retired',this)"><span class="ni-ic">📦</span><span>汰換清單</span></div>
     <div class="ni" onclick="nav('reports',this)"><span class="ni-ic">📑</span><span>報表匯出</span></div>
     <div class="ni" onclick="nav('import',this)"><span class="ni-ic">📥</span><span>資料輸入</span></div>
+    <div class="ni" onclick="nav('history',this)"><span class="ni-ic">🔍</span><span>器具履歷</span></div>
     <div class="ni" onclick="nav('settings',this)"><span class="ni-ic">⚙️</span><span>系統設定</span></div>
   </nav>
   <div class="sf">
@@ -77,6 +78,30 @@
     <div class="sync" id="sync-bar">
       <div class="sd dis" id="sync-dot"></div>
       <span id="sync-label" style="color:var(--g400)">連線中...</span>
+      <!-- 器具履歷 -->
+    <div class="page" id="page-history">
+      <div style="max-width:800px">
+        <div class="card cb" style="margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px">🔍 器具履歷查詢</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg" style="flex:1;min-width:150px">
+              <label class="fl">器具編號</label>
+              <select class="fs" id="hist-eq"></select>
+            </div>
+            <div class="fg" style="min-width:100px">
+              <label class="fl">起始年度</label>
+              <select class="fs" id="hist-yr1"></select>
+            </div>
+            <div class="fg" style="min-width:100px">
+              <label class="fl">結束年度</label>
+              <select class="fs" id="hist-yr2"></select>
+            </div>
+            <button class="btn bp bsm" onclick="historySearch()">查詢</button>
+          </div>
+        </div>
+        <div id="hist-result"></div>
+      </div>
+    </div>
     </div>
   </div>
 
