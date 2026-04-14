@@ -393,6 +393,7 @@ function nav(p, el) {
   if (p === 'retired')   renderRetired();
   if (p === 'settings')  renderSettings();
   if (p === 'batch')     initBatch();
+  if (p === 'history')   initHistory();
 }
 
 // ── 手機 Sidebar 開關 ──
@@ -1294,3 +1295,125 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+// ════════════════════════════════════════════════════════════
+// 器具履歷
+// ════════════════════════════════════════════════════════════
+function initHistory() {
+  // 器具編號下拉
+  const eqSel = document.getElementById('hist-eq');
+  if (eqSel) {
+    eqSel.innerHTML = EQ.map(e =>
+      `<option value="${e.id}">${e.id} — ${e.type}${e.subtype?'／'+e.subtype:''}（${e.dept}）</option>`
+    ).join('');
+  }
+  // 年度下拉
+  const years = buildYears();
+  const curY  = String(new Date().getFullYear());
+  ['hist-yr1','hist-yr2'].forEach((id, i) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = years.map(y =>
+      `<option value="${y}" ${(i===0 ? y===curY : y===curY) ? 'selected':''}>${y}</option>`
+    ).join('');
+  });
+}
+
+function historySearch() {
+  const eqId = document.getElementById('hist-eq')?.value;
+  const yr1  = +document.getElementById('hist-yr1')?.value;
+  const yr2  = +document.getElementById('hist-yr2')?.value;
+  if (!eqId) { toast('❗ 請選擇器具編號'); return; }
+  if (yr1 > yr2) { toast('❗ 起始年度不能大於結束年度'); return; }
+
+  const eq = EQ.find(e => e.id === eqId);
+  const recs = REC
+    .filter(r => {
+      if (r.eqId !== eqId || r.result === 'pending' || !r.date) return false;
+      const y = +r.date.slice(0, 4);
+      return y >= yr1 && y <= yr2;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const result = document.getElementById('hist-result');
+  if (!result) return;
+
+  if (!recs.length) {
+    result.innerHTML = `<div class="card cb te">此器具在 ${yr1}～${yr2} 年度內無檢測紀錄</div>`;
+    return;
+  }
+
+  // 器具基本資料
+  const eqInfo = eq ? `
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:var(--M)">${eq.id}</div>
+      <span class="badge bgr">${eq.type}${eq.subtype?'／'+eq.subtype:''}</span>
+      <span class="badge bgr">${eq.dept}</span>
+      <span class="badge bb">${eq.lead} mmPb</span>
+      <span class="badge ${SM[eq.status]||'bgr'}">${SL[eq.status]||eq.status}</span>
+    </div>` : '';
+
+  // 時間軸
+  const timeline = recs.map((r, i) => {
+    const rv = RES[r.result] || RES.pending;
+    const isLast = i === recs.length - 1;
+    const dotColor = {
+      normal: 'var(--grn)', edge_ok: 'var(--am)',
+      edge_replace: '#f97316', core_replace: 'var(--red)', both_replace: '#991b1b'
+    }[r.result] || 'var(--g300)';
+    return `
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+          <div style="width:14px;height:14px;border-radius:50%;background:${dotColor};border:2px solid #fff;box-shadow:0 0 0 2px ${dotColor};margin-top:3px"></div>
+          ${!isLast?`<div style="width:2px;flex:1;background:var(--g200);min-height:30px;margin:4px 0"></div>`:''}
+        </div>
+        <div style="flex:1;padding-bottom:${isLast?'0':'16px'}">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:700;color:var(--navy);font-family:var(--M)">${r.date}</span>
+            <span class="badge ${rv.c}">${rv.i} ${rv.l}</span>
+            ${r.plan?`<span style="font-size:10px;color:var(--g400)">排定：${r.plan}</span>`:''}
+          </div>
+          <div style="font-size:11px;color:var(--g600);display:flex;gap:12px;flex-wrap:wrap">
+            ${r.insp?`<span>👤 ${r.insp}</span>`:''}
+            ${r.approver?`<span>🖊 ${r.approver}</span>`:''}
+            ${r.next?`<span>📅 下次：${r.next}</span>`:''}
+          </div>
+          ${r.note?`<div style="font-size:11px;color:#78350f;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:5px 8px;margin-top:5px">📝 ${r.note}</div>`:''}
+        </div>
+      </div>`;
+  }).join('');
+
+  // 統計摘要
+  const total   = recs.length;
+  const passN   = recs.filter(r => r.result === 'normal').length;
+  const warnN   = recs.filter(r => r.result === 'edge_ok').length;
+  const failN   = recs.filter(r => ['edge_replace','core_replace','both_replace'].includes(r.result)).length;
+
+  result.innerHTML = `
+    <div class="card cb">
+      ${eqInfo}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <div style="background:var(--g50);border:1px solid var(--g200);border-radius:8px;padding:9px 14px;flex:1;min-width:80px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:var(--navy)">${total}</div>
+          <div style="font-size:10px;color:var(--g400);margin-top:2px">總檢測次數</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 14px;flex:1;min-width:80px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:var(--grn)">${passN}</div>
+          <div style="font-size:10px;color:#166534;margin-top:2px">正常堪用</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 14px;flex:1;min-width:80px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:var(--am)">${warnN}</div>
+          <div style="font-size:10px;color:#92400e;margin-top:2px">邊緣堪用</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:9px 14px;flex:1;min-width:80px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:var(--red)">${failN}</div>
+          <div style="font-size:10px;color:#991b1b;margin-top:2px">建議更換</div>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:7px">
+        檢測時間軸
+        <span style="flex:1;height:1px;background:var(--g200);display:block"></span>
+        <span style="font-weight:400;color:var(--g400)">${yr1} ～ ${yr2} 年度</span>
+      </div>
+      <div style="padding-left:4px">${timeline}</div>
+    </div>`;
+}
