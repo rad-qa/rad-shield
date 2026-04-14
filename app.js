@@ -1065,7 +1065,7 @@ function confirmImpEq(){
   const chk=new Set([...document.querySelectorAll('.imp-eq-cb:checked')].map(c=>+c.dataset.i));
   if(!chk.size){toast('⚠️ 請至少勾選一筆資料');return;}
   let added=0,updated=0;
-  _pEq.forEach((r,i)=>{if(!chk.has(i))return;r.status=computeEqStatus(r);const ex=EQ.find(e=>e.id===r.id);if(ex){Object.assign(ex,{...r,photo:ex.photo||r.photo,status:ex.status});updated++;}else{EQ.push(r);added++;}});
+  _pEq.forEach((r,i)=>{if(!chk.has(i))return;r.status=computeEqStatus(r);const ex=EQ.find(e=>e.id===r.id);if(ex){Object.assign(ex,{...r,photo:ex.photo||r.photo,status:ex.status,month:r.month,schedYM:r.schedYM||null});updated++;}else{r.month=r.month||1;r.schedYM=r.schedYM||null;EQ.push(r);added++;}});
   persistLocal();_pEq=null;document.getElementById('prev-eq').innerHTML='';renderEq();renderDash();
   const msg=[];if(added)msg.push(`新增 ${added} 筆`);if(updated)msg.push(`更新 ${updated} 筆`);
   if(msg.length)toast(`✅ 匯入完成：${msg.join('，')}`);else toast('⚠️ 沒有資料被匯入');
