@@ -272,7 +272,7 @@ function setSyncSt(st, msg) {
   l.textContent  = lbs[st] || msg || '';
   l.style.color  = { dis:'var(--g400)', con:'var(--grn)', syn:'var(--am)', err:'var(--red)' }[st];
   const sb = document.getElementById('sync-bar');
-  if (sb) sb.onclick = st === 'err' ? syncNow : () => nav('settings', document.querySelectorAll('.ni')[9]);
+  if (sb) sb.onclick = st === 'err' ? syncNow : () => nav('settings', document.querySelectorAll('.ni')[10]);
 }
 
 // ── Loading overlay ──
