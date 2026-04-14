@@ -41,13 +41,18 @@ function getStoredPwd() { return localStorage.getItem(KEYS.auth) || ''; }
 function storePwd(pwd)  { localStorage.setItem(KEYS.auth, pwd); }
 
 async function verifyPassword(pwd) {
+  const res = await apiFetchDirect({ action: 'verifyPassword', pwd });
+  return res && res.ok;
+}
+
+async function apiFetchDirect(body) {
   try {
-    const res = await fetch(API_URL + '?action=verifyPassword&pwd=' + encodeURIComponent(pwd));
-    const data = await res.json();
-    return data && data.ok;
+    const params = new URLSearchParams(body);
+    const res = await fetch(API_URL + '?' + params.toString());
+    return await res.json();
   } catch(e) {
-    console.warn('verifyPassword error:', e);
-    return false;
+    console.warn('apiFetchDirect error:', e);
+    return null;
   }
 }
 
@@ -100,26 +105,42 @@ function showLockScreen() {
 function getPwd() { return getStoredPwd(); }
 
 async function apiFetch(body) {
-  try {
-    const hasData = ['equipment','records','retired','config'].some(k => body[k] !== undefined);
-    if (hasData) {
-      const payload = { ...body, pwd: getPwd() };
-      await fetch(API_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
+  return new Promise((resolve) => {
+    try {
+      const cb = 'cb' + Date.now();
+      const params = { ...body, pwd: getPwd(), callback: cb };
+      // 序列化資料欄位
+      ['equipment','records','retired','config'].forEach(k => {
+        if (params[k] !== undefined && typeof params[k] === 'object') {
+          params[k] = JSON.stringify(params[k]);
+        }
       });
-      return { ok: true };
-    } else {
-      const params = new URLSearchParams({ ...body, pwd: getPwd() });
-      const res = await fetch(API_URL + '?' + params.toString());
-      return await res.json();
+      const qs = Object.entries(params)
+        .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+        .join('&');
+      const script = document.createElement('script');
+      const timer = setTimeout(() => {
+        cleanup();
+        console.warn('API timeout');
+        resolve(null);
+      }, 30000);
+      function cleanup() {
+        clearTimeout(timer);
+        delete window[cb];
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+      window[cb] = (data) => {
+        cleanup();
+        resolve(data);
+      };
+      script.src = API_URL + '?' + qs;
+      script.onerror = () => { cleanup(); resolve(null); };
+      document.head.appendChild(script);
+    } catch(e) {
+      console.warn('API error:', e);
+      resolve(null);
     }
-  } catch (e) {
-    console.warn('API error:', e);
-    return null;
-  }
+  });
 }
 
 // ── 從 Sheets 載入全部資料 ──
