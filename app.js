@@ -214,7 +214,7 @@ async function jsonpFetch(params) {
 }
 
 async function syncSheet(sheetName, data) {
-  const BATCH = 20;
+  const BATCH = 8;
   // 先清除舊資料
   const clearRes = await jsonpFetch({ action: 'clearSheet', sheet: sheetName });
   if (!clearRes || !clearRes.ok) return false;
