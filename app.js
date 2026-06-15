@@ -233,7 +233,7 @@ async function jsonpFetch(params) {
 
 async function syncSheet(sheetName, data) {
   const BATCH = 5;
-  const DELAY = 1000; // 每批間隔 500ms
+  const DELAY = 1500; // 每批間隔 500ms
   // 先清除舊資料
   const clearRes = await jsonpFetch({ action: 'clearSheet', sheet: sheetName });
   if (!clearRes || !clearRes.ok) return false;
