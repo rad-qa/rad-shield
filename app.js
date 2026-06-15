@@ -204,8 +204,8 @@ async function loadFromSheets() {
 
 // ── 儲存全部到 Sheets（防抖 2 秒）──
 function scheduleSync() {
-  clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(syncNow, 2000);
+  // 資料變動後不自動上傳，改為手動控制
+  setSyncSt('local', '本機已更新（未上傳）');
 }
 
 // 分批 JSONP 傳送（每批最多 20 筆）
@@ -261,6 +261,16 @@ async function syncSheet(sheetName, data) {
 async function syncNow() {
   setSyncSt('syn');
   try {
+    // 安全檢查：先讀取 Sheets 現有資料量，防止本機少量資料覆蓋 Sheets
+    const check = await jsonpFetch({ action: 'load' });
+    if (check && check.ok) {
+      const sheetsEqCount = (check.equipment || []).length;
+      if (sheetsEqCount > 0 && EQ.length < sheetsEqCount * 0.8) {
+        setSyncSt('err', '上傳中止');
+        toast('⚠️ 上傳中止！本機器具（' + EQ.length + '件）少於 Sheets（' + sheetsEqCount + '件）\n請先按「從 Sheets 載入」');
+        return;
+      }
+    }
     const eqOk  = await syncSheet('equipment', EQ);
     const recOk = await syncSheet('records',   REC);
     const retOk = await syncSheet('retired',   RET);
@@ -269,13 +279,14 @@ async function syncNow() {
       const n = new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       _lastSync = n;
       save(KEYS.synced, n);
-      setSyncSt('con', '已同步 ' + n);
+      setSyncSt('con', '已上傳 ' + n);
+      toast('✅ 資料已上傳至 Google Sheets');
     } else {
-      setSyncSt('err', '同步失敗');
+      setSyncSt('err', '上傳失敗');
     }
   } catch(e) {
     console.warn('syncNow error:', e);
-    setSyncSt('err', '同步失敗');
+    setSyncSt('err', '上傳失敗');
   }
 }
 
@@ -284,11 +295,11 @@ function setSyncSt(st, msg) {
   const d = document.getElementById('sync-dot');
   const l = document.getElementById('sync-label');
   if (!d || !l) return;
-  const cls = { con:'con', syn:'syn', err:'err', dis:'dis' };
+  const cls = { con:'con', syn:'syn', err:'err', dis:'dis', local:'dis' };
   d.className = 'sd ' + (cls[st] || 'dis');
-  const lbs = { dis:'未連線', con: msg||'已同步', syn:'同步中...', err: msg||'同步失敗' };
+  const lbs = { dis:'未連線', con: msg||'已上傳', syn:'處理中...', err: msg||'失敗', local: msg||'本機已更新' };
   l.textContent  = lbs[st] || msg || '';
-  l.style.color  = { dis:'var(--g400)', con:'var(--grn)', syn:'var(--am)', err:'var(--red)' }[st];
+  l.style.color  = { dis:'var(--g400)', con:'var(--grn)', syn:'var(--am)', err:'var(--red)', local:'var(--am)' }[st];
   const sb = document.getElementById('sync-bar');
   if (sb) sb.onclick = st === 'err' ? syncNow : () => nav('settings', document.querySelectorAll('.ni')[9]);
 }
@@ -1171,11 +1182,23 @@ function renderSettings() {
   document.getElementById('set-dept').value = CFG.dept || '';
   renderDeptList(); renderApproverList(); renderCustomFieldList();
   const el = document.getElementById('drive-panel');
-  if (el) el.innerHTML = `<div style="padding:11px;background:var(--g50);border-radius:8px;font-size:11.5px;color:var(--g600);line-height:1.7">
-    ☁️ 資料自動同步至 Google Sheets<br>
-    上次同步：<strong>${_lastSync||'尚未同步'}</strong><br>
-    <button class="btn bp bsm" style="margin-top:8px" onclick="syncNow()">🔄 立即同步</button>
-  </div>`;
+  if (el) el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:4px">⬇️ 從 Sheets 載入</div>
+        <div style="font-size:10.5px;color:#166534;margin-bottom:8px;line-height:1.4">以 Google Sheets 資料<br>覆蓋本機</div>
+        <button class="btn bp bsm" onclick="loadFromSheets()" style="width:100%;background:#16a34a">立即載入</button>
+      </div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:4px">⬆️ 上傳至 Sheets</div>
+        <div style="font-size:10.5px;color:#1e40af;margin-bottom:8px;line-height:1.4">以本機資料<br>覆蓋 Google Sheets</div>
+        <button class="btn bp bsm" onclick="syncNow()" style="width:100%">立即上傳</button>
+      </div>
+    </div>
+    <div style="font-size:10.5px;color:var(--g400);background:var(--g50);border-radius:6px;padding:8px 10px;line-height:1.6">
+      上次上傳：<strong>${_lastSync||'尚未上傳'}</strong><br>
+      ⚠️ 上傳前系統會自動檢查，若本機資料筆數異常少，將自動中止保護
+    </div>`;
 }
 
 function renderDeptList(){
